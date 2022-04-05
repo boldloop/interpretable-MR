@@ -41,8 +41,12 @@ train_labels = torch.Tensor([train_dataset[i][1] for i in range(len(train_datase
 test_data = torch.stack([test_dataset[i][0] for i in range(len(test_dataset))])
 test_labels = torch.Tensor([test_dataset[i][1] for i in range(len(test_dataset))])
 
-trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-testloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+trainloader = torch.utils.data.DataLoader(
+    train_dataset, batch_size=batch_size, shuffle=True
+)
+testloader = torch.utils.data.DataLoader(
+    test_dataset, batch_size=batch_size, shuffle=True
+)
 
 # define CNN
 class ConvNet(nn.Module):
@@ -69,7 +73,9 @@ class ConvNet(nn.Module):
 
 model = ConvNet().to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate, weight_decay=0)
+optimizer = torch.optim.Adam(
+    params=model.parameters(), lr=learning_rate, weight_decay=0
+)
 
 for epoch in track(range(num_epochs)):
     for batch_index, (specs, labels) in enumerate(trainloader):
@@ -109,4 +115,6 @@ for epoch in track(range(num_epochs)):
                 n_correct += (predicted == labels).sum().item()
 
             train_acc = 100.0 * n_correct / n_samples
-            print(f"Epoch: {epoch+1}. Test acc: {test_acc} %. Train acc: {train_acc:.1f} %.")
+            print(
+                f"Epoch: {epoch+1}. Test acc: {test_acc} %. Train acc: {train_acc:.1f} %."
+            )
