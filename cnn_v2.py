@@ -10,7 +10,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--learning_rate", type=float, default=0.001)
-parser.add_argument("--batch_size", type=int, default=4)
+parser.add_argument("--batch_size", type=int, default=32)
 args = parser.parse_args()
 
 # Device configuration
@@ -41,8 +41,8 @@ train_labels = torch.Tensor([train_dataset[i][1] for i in range(len(train_datase
 test_data = torch.stack([test_dataset[i][0] for i in range(len(test_dataset))])
 test_labels = torch.Tensor([test_dataset[i][1] for i in range(len(test_dataset))])
 
-trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True)
-testloader = torch.utils.data.DataLoader(test_dataset, batch_size=32, shuffle=True)
+trainloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+testloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 # define CNN
 class ConvNet(nn.Module):
@@ -50,15 +50,16 @@ class ConvNet(nn.Module):
         super(ConvNet, self).__init__()
         self.conv1 = nn.Conv2d(1, 30, 5)
         self.pool = nn.MaxPool2d(2, 2)
+        self.bn = nn.BatchNorm2d(30)
         self.conv2 = nn.Conv2d(30, 30, 5)
-        self.fc1 = nn.Linear(90, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc1 = nn.Linear(90, 70)
+        self.fc2 = nn.Linear(70, 30)
+        self.fc3 = nn.Linear(30, 10)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.bn(self.conv1(x))))
+        x = self.pool(F.relu(self.bn(self.conv2(x))))
+        x = self.pool(F.relu(self.bn(self.conv2(x))))
         x = x.view(x.shape[0], -1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
@@ -68,7 +69,7 @@ class ConvNet(nn.Module):
 
 model = ConvNet().to(device)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate)
+optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate, weight_decay=0)
 
 for epoch in track(range(num_epochs)):
     for batch_index, (specs, labels) in enumerate(trainloader):
@@ -82,27 +83,30 @@ for epoch in track(range(num_epochs)):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+    if (epoch + 1) % 5 == 0:
+        with torch.no_grad():
+            n_correct = 0
+            n_samples = 0
+            n_class_correct = [0 for i in range(10)]
+            n_class_samples = [0 for i in range(10)]
+            for images, labels in testloader:
+                images = images.to(device)
+                labels = labels.to(device)
+                outputs = model(images)
+                # max returns (value ,index)
+                _, predicted = torch.max(outputs, 1)
+                n_samples += labels.size(0)
+                n_correct += (predicted == labels).sum().item()
 
-with torch.no_grad():
-    n_correct = 0
-    n_samples = 0
-    n_class_correct = [0 for i in range(10)]
-    n_class_samples = [0 for i in range(10)]
-    for images, labels in testloader:
-        images = images.to(device)
-        labels = labels.to(device)
-        outputs = model(images)
-        # max returns (value ,index)
-        _, predicted = torch.max(outputs, 1)
-        n_samples += labels.size(0)
-        n_correct += (predicted == labels).sum().item()
+            test_acc = 100.0 * n_correct / n_samples
+            for images, labels in trainloader:
+                images = images.to(device)
+                labels = labels.to(device)
+                outputs = model(images)
+                # max returns (value ,index)
+                _, predicted = torch.max(outputs, 1)
+                n_samples += labels.size(0)
+                n_correct += (predicted == labels).sum().item()
 
-        for i in range(batch_size):
-            label = labels[i]
-            pred = predicted[i]
-            if label == pred:
-                n_class_correct[label] += 1
-            n_class_samples[label] += 1
-
-    acc = 100.0 * n_correct / n_samples
-    print(f"Accuracy of the network: {acc} %")
+            train_acc = 100.0 * n_correct / n_samples
+            print(f"Epoch: {epoch+1}. Test acc: {test_acc} %. Train acc: {train_acc:.1f} %.")
