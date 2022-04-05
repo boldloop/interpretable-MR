@@ -8,7 +8,7 @@ import argparse
 
 # configure argparse for Farnam
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=100)
+parser.add_argument("--epochs", type=int, default=300)
 parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--batch_size", type=int, default=32)
 args = parser.parse_args()
@@ -51,15 +51,15 @@ class ConvNet(nn.Module):
         self.conv1 = nn.Conv2d(1, 30, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.bn = nn.BatchNorm2d(30)
-        self.conv2 = nn.Conv2d(30, 30, 5)
-        self.fc1 = nn.Linear(90, 70)
-        self.fc2 = nn.Linear(70, 30)
-        self.fc3 = nn.Linear(30, 10)
+        self.conv2 = nn.Conv2d(30, 30, 10)
+        self.fc1 = nn.Linear(720, 300)
+        self.fc2 = nn.Linear(300, 100)
+        self.fc3 = nn.Linear(100, 10)
 
     def forward(self, x):
         x = self.pool(F.relu(self.bn(self.conv1(x))))
         x = self.pool(F.relu(self.bn(self.conv2(x))))
-        x = self.pool(F.relu(self.bn(self.conv2(x))))
+        # x = self.pool(F.relu(self.bn(self.conv2(x))))
         x = x.view(x.shape[0], -1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
