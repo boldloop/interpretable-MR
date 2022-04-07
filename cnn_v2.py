@@ -28,26 +28,37 @@ class Cropper:
     def __call__(self, img):
         return transforms.functional.crop(img, 35, 54, 218, 336)
 
+
 # import data and create trainloader
 train_dataset = datasets.ImageFolder(
     "data/train",
     transform=transforms.Compose(
-        [transforms.Grayscale(), Cropper(),  transforms.ToTensor()]
+        [
+            transforms.Grayscale(),
+            Cropper(),
+            transforms.Resize((218 // 3, 336 // 3)),
+            transforms.ToTensor(),
+        ]
     ),
 )
 test_dataset = datasets.ImageFolder(
     "data/test",
     transform=transforms.Compose(
-        [transforms.Grayscale(), Cropper(),  transforms.ToTensor()]
+        [
+            transforms.Grayscale(),
+            Cropper(),
+            transforms.Resize((218 // 3, 336 // 3)),
+            transforms.ToTensor(),
+        ]
     ),
 )
 
 train_data = torch.stack([train_dataset[i][0] for i in range(len(train_dataset))])
 train_labels = torch.Tensor([train_dataset[i][1] for i in range(len(train_dataset))])
 
-plt.imshow(np.squeeze(train_data[4]))
-plt.show()
-exit()
+# plt.imshow(np.squeeze(train_data[4]))
+# plt.show()
+# exit()
 
 test_data = torch.stack([test_dataset[i][0] for i in range(len(test_dataset))])
 test_labels = torch.Tensor([test_dataset[i][1] for i in range(len(test_dataset))])
@@ -59,29 +70,29 @@ testloader = torch.utils.data.DataLoader(
     test_dataset, batch_size=batch_size, shuffle=True
 )
 
-# define CNN
+# construct CNN
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 30, 3, padding=0)
-        self.pool1 = nn.MaxPool2d(2, 2)
-        self.pool2 = nn.MaxPool2d(5, 5)
-        self.bn = nn.BatchNorm2d(30)
-        self.conv2 = nn.Conv2d(30, 30, 3, padding=0)
-        self.conv3 = nn.Conv2d(30, 30, 3, padding=0)
-        self.fc1 = nn.Linear(240, 100)
-        self.fc2 = nn.Linear(100, 100)
-        self.fc3 = nn.Linear(100, 10)
+        self.conv1 = nn.Conv2d(1, 20, 3, padding=0)
+        self.pool1 = nn.MaxPool2d(3, 3)
+        self.pool2 = nn.MaxPool2d(3, 3)
+        self.bn = nn.BatchNorm2d(20)
+        self.conv2 = nn.Conv2d(20, 20, 3, padding=0)
+        self.conv3 = nn.Conv2d(20, 20, 3, padding=0)
+        self.fc1 = nn.Linear(18160, 1000)
+        self.fc2 = nn.Linear(1000, 10)
 
     def forward(self, x):
-        # Implement skip connections by flattening and concatenating intermediate results
         x = self.pool1(F.relu(self.bn(self.conv1(x))))
-        x = self.pool2(F.relu(self.bn(self.conv2(x))))
-        x = self.pool1(F.relu(self.bn(self.conv3(x))))
+        res1 = x.view(x.shape[0], -1).clone()
+        x = self.pool1(F.relu(self.bn(self.conv2(x))))
+        res2 = x.view(x.shape[0], -1).clone()
+        x = self.pool2(F.relu(self.bn(self.conv3(x))))
         x = x.view(x.shape[0], -1)
+        x = torch.cat((x, res1, res2), dim=1)
         x = F.relu(self.fc1(x))
-        # x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.fc2(x)
         return x
 
 
@@ -92,12 +103,12 @@ optimizer = torch.optim.Adam(
 )
 
 for epoch in track(range(num_epochs)):
-    for batch_index, (specs, labels) in enumerate(trainloader):
+    for batch_index, (images, labels) in enumerate(trainloader):
 
-        specs = specs.to(device)
+        images = images.to(device)
         labels = labels.to(device)
 
-        outputs = model(specs)
+        outputs = model(images)
         loss = criterion(outputs, labels)
 
         optimizer.zero_grad()
