@@ -13,11 +13,10 @@ torch.manual_seed(42)
 
 # configure argparse for Farnam
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=1)
+parser.add_argument("--epochs", type=int, default=10)
 parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--save_model", type=bool, default=False)
-
 args = parser.parse_args()
 
 # Device configuration
@@ -112,7 +111,7 @@ class ConvNet(nn.Module):
 model = ConvNet().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(
-    params=model.parameters(), lr=learning_rate, weight_decay=1e-7
+    params=model.parameters(), lr=learning_rate, weight_decay=1e-7, eps=1e-8
 )
 
 for epoch in track(range(num_epochs)):
