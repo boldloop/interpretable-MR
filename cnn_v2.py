@@ -7,12 +7,17 @@ import torchvision.datasets as datasets
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+
+torch.manual_seed(42)
 
 # configure argparse for Farnam
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=300)
+parser.add_argument("--epochs", type=int, default=1)
 parser.add_argument("--learning_rate", type=float, default=0.001)
 parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--save_model", type=bool, default=False)
+
 args = parser.parse_args()
 
 # Device configuration
@@ -22,6 +27,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 num_epochs = args.epochs
 batch_size = args.batch_size
 learning_rate = args.learning_rate
+img_scale = 2
+
 
 # import data and create trainloader
 class Cropper:
@@ -36,7 +43,7 @@ train_dataset = datasets.ImageFolder(
         [
             transforms.Grayscale(),
             Cropper(),
-            transforms.Resize((218 // 3, 336 // 3)),
+            transforms.Resize((218 // img_scale, 336 // img_scale)),
             transforms.ToTensor(),
         ]
     ),
@@ -47,7 +54,7 @@ test_dataset = datasets.ImageFolder(
         [
             transforms.Grayscale(),
             Cropper(),
-            transforms.Resize((218 // 3, 336 // 3)),
+            transforms.Resize((218 // img_scale, 336 // img_scale)),
             transforms.ToTensor(),
         ]
     ),
@@ -56,12 +63,14 @@ test_dataset = datasets.ImageFolder(
 train_data = torch.stack([train_dataset[i][0] for i in range(len(train_dataset))])
 train_labels = torch.Tensor([train_dataset[i][1] for i in range(len(train_dataset))])
 
+# plot transformed spectrograms
 # plt.imshow(np.squeeze(train_data[4]))
 # plt.show()
 # exit()
 
 test_data = torch.stack([test_dataset[i][0] for i in range(len(test_dataset))])
 test_labels = torch.Tensor([test_dataset[i][1] for i in range(len(test_dataset))])
+
 
 trainloader = torch.utils.data.DataLoader(
     train_dataset, batch_size=batch_size, shuffle=True
@@ -70,27 +79,31 @@ testloader = torch.utils.data.DataLoader(
     test_dataset, batch_size=batch_size, shuffle=True
 )
 
+
 # construct CNN
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 20, 3, padding=0)
-        self.pool1 = nn.MaxPool2d(3, 3)
-        self.pool2 = nn.MaxPool2d(3, 3)
+        self.conv1 = nn.Conv2d(1, 20, 5)
+        self.pool = nn.MaxPool2d(3, 3)
+        self.pool2 = nn.MaxPool2d(2, 2)
         self.bn = nn.BatchNorm2d(20)
-        self.conv2 = nn.Conv2d(20, 20, 3, padding=0)
-        self.conv3 = nn.Conv2d(20, 20, 3, padding=0)
-        self.fc1 = nn.Linear(18160, 1000)
+        self.conv2 = nn.Conv2d(20, 20, 5)
+        self.conv3 = nn.Conv2d(20, 20, 3)
+        self.conv4 = nn.Conv2d(20, 20, 3)
+        self.fc1 = nn.Linear(41760, 1000)
         self.fc2 = nn.Linear(1000, 10)
 
     def forward(self, x):
-        x = self.pool1(F.relu(self.bn(self.conv1(x))))
+        x = self.pool(F.relu(self.bn(self.conv1(x))))
         res1 = x.view(x.shape[0], -1).clone()
-        x = self.pool1(F.relu(self.bn(self.conv2(x))))
+        x = self.pool(F.relu(self.bn(self.conv2(x))))
         res2 = x.view(x.shape[0], -1).clone()
         x = self.pool2(F.relu(self.bn(self.conv3(x))))
+        res3 = x.view(x.shape[0], -1)
+        x = F.relu(self.bn(self.conv4(x)))
         x = x.view(x.shape[0], -1)
-        x = torch.cat((x, res1, res2), dim=1)
+        x = torch.cat((x, res1, res2, res3), dim=1)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -99,7 +112,7 @@ class ConvNet(nn.Module):
 model = ConvNet().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(
-    params=model.parameters(), lr=learning_rate, weight_decay=0
+    params=model.parameters(), lr=learning_rate, weight_decay=1e-7
 )
 
 for epoch in track(range(num_epochs)):
@@ -144,3 +157,6 @@ for epoch in track(range(num_epochs)):
             print(
                 f"Epoch: {epoch+1}. Test acc: {test_acc} %. Train acc: {train_acc:.1f} %."
             )
+
+if args.save_model:
+    torch.save(model.state_dict(), "./torch_model.pth")
