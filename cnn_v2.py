@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from rich.progress import track
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+from torchvision.utils import make_grid
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,10 +14,10 @@ torch.manual_seed(42)
 
 # configure argparse for Farnam
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=10)
-parser.add_argument("--learning_rate", type=float, default=0.001)
+parser.add_argument("--epochs", type=int, default=30)
+parser.add_argument("--learning_rate", type=float, default=0.0001)
 parser.add_argument("--batch_size", type=int, default=32)
-parser.add_argument("--save_model", type=bool, default=False)
+parser.add_argument("--save_model", type=bool, default=True)
 args = parser.parse_args()
 
 # Device configuration
@@ -44,6 +45,7 @@ train_dataset = datasets.ImageFolder(
             Cropper(),
             transforms.Resize((218 // img_scale, 336 // img_scale)),
             transforms.ToTensor(),
+            transforms.RandomErasing(p=0.5)
         ]
     ),
 )
@@ -63,7 +65,7 @@ train_data = torch.stack([train_dataset[i][0] for i in range(len(train_dataset))
 train_labels = torch.Tensor([train_dataset[i][1] for i in range(len(train_dataset))])
 
 # plot transformed spectrograms
-# plt.imshow(np.squeeze(train_data[4]))
+# plt.imshow(np.squeeze(train_data[0]))
 # plt.show()
 # exit()
 
@@ -90,7 +92,7 @@ class ConvNet(nn.Module):
         self.conv2 = nn.Conv2d(20, 20, 5)
         self.conv3 = nn.Conv2d(20, 20, 3)
         self.conv4 = nn.Conv2d(20, 20, 3)
-        self.fc1 = nn.Linear(41760, 1000)
+        self.fc1 = nn.Linear(3960, 1000)
         self.fc2 = nn.Linear(1000, 10)
 
     def forward(self, x):
@@ -99,10 +101,10 @@ class ConvNet(nn.Module):
         x = self.pool(F.relu(self.bn(self.conv2(x))))
         res2 = x.view(x.shape[0], -1).clone()
         x = self.pool2(F.relu(self.bn(self.conv3(x))))
-        res3 = x.view(x.shape[0], -1)
+        res3 = x.view(x.shape[0], -1).clone()
         x = F.relu(self.bn(self.conv4(x)))
         x = x.view(x.shape[0], -1)
-        x = torch.cat((x, res1, res2, res3), dim=1)
+        x = torch.cat((x, res2, res3), dim=1)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -111,7 +113,7 @@ class ConvNet(nn.Module):
 model = ConvNet().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(
-    params=model.parameters(), lr=learning_rate, weight_decay=1e-7, eps=1e-8
+    params=model.parameters(), lr=learning_rate
 )
 
 for epoch in track(range(num_epochs)):
@@ -127,7 +129,7 @@ for epoch in track(range(num_epochs)):
         loss.backward()
         optimizer.step()
 
-    if (epoch + 1) % 5 == 0:
+    if (epoch + 1) % 1 == 0:
         with torch.no_grad():
             n_correct = 0
             n_samples = 0
