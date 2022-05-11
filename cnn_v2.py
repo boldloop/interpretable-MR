@@ -9,12 +9,14 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, plot_confusion_matrix
 
 torch.manual_seed(42)
 
 # configure argparse for Farnam
 parser = argparse.ArgumentParser()
-parser.add_argument("--epochs", type=int, default=30)
+parser.add_argument("--epochs", type=int, default=1)
 parser.add_argument("--learning_rate", type=float, default=0.0001)
 parser.add_argument("--batch_size", type=int, default=32)
 parser.add_argument("--save_model", type=bool, default=True)
@@ -38,7 +40,7 @@ class Cropper:
 
 # import data and create trainloader
 train_dataset = datasets.ImageFolder(
-    "split_data/train",
+    "data/train",
     transform=transforms.Compose(
         [
             transforms.Grayscale(),
@@ -50,7 +52,7 @@ train_dataset = datasets.ImageFolder(
     ),
 )
 test_dataset = datasets.ImageFolder(
-    "split_data/test",
+    "data/test",
     transform=transforms.Compose(
         [
             transforms.Grayscale(),
@@ -114,19 +116,22 @@ criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(
     params=model.parameters(), lr=learning_rate
 )
+model.load_state_dict(torch.load('torch_model.pth'))
 
 for epoch in track(range(num_epochs)):
-    for batch_index, (images, labels) in enumerate(trainloader):
+#     for batch_index, (images, labels) in enumerate(trainloader):
 
-        images = images.to(device)
-        labels = labels.to(device)
+#         images = images.to(device)
+#         labels = labels.to(device)
 
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+#         outputs = model(images)
+#         loss = criterion(outputs, labels)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+
+
 
     if (epoch + 1) % 1 == 0:
         with torch.no_grad():
@@ -134,6 +139,8 @@ for epoch in track(range(num_epochs)):
             n_samples = 0
             n_class_correct = [0 for i in range(10)]
             n_class_samples = [0 for i in range(10)]
+            pred = []
+            true_labels = []
             for images, labels in testloader:
                 images = images.to(device)
                 labels = labels.to(device)
@@ -142,7 +149,8 @@ for epoch in track(range(num_epochs)):
                 _, predicted = torch.max(outputs, 1)
                 n_samples += labels.size(0)
                 n_correct += (predicted == labels).sum().item()
-
+                pred.extend(predicted.detach().numpy())
+                true_labels.extend(labels.detach().numpy())
             test_acc = 100.0 * n_correct / n_samples
             for images, labels in trainloader:
                 images = images.to(device)
@@ -157,6 +165,16 @@ for epoch in track(range(num_epochs)):
             print(
                 f"Epoch: {epoch+1}. Test acc: {test_acc} %. Train acc: {train_acc:.1f} %."
             )
+            # Display confusion matrix
+            categories = np.array(["blues","classical","country","disco","hiphop","jazz","metal","pop","reggae","rock"])
+            classes = [str(x) for x in range(10)]
+            cm = confusion_matrix(pred, true_labels)
+            
+            p = sns.heatmap(cm, cmap='coolwarm', annot=True, fmt='g')
+            p.set_xticklabels(categories, rotation=30)
+            p.set_yticklabels(categories, rotation=30)
+            p.set_title(f"Confusion matrix (test data)", fontsize=15)
+            plt.savefig("./conf_mat.jpeg")
 
 if args.save_model:
     torch.save(model.state_dict(), "./torch_model.pth")
