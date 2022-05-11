@@ -38,7 +38,7 @@ class Cropper:
 
 # import data and create trainloader
 train_dataset = datasets.ImageFolder(
-    "data/train",
+    "split_data/train",
     transform=transforms.Compose(
         [
             transforms.Grayscale(),
@@ -50,7 +50,7 @@ train_dataset = datasets.ImageFolder(
     ),
 )
 test_dataset = datasets.ImageFolder(
-    "data/test",
+    "split_data/test",
     transform=transforms.Compose(
         [
             transforms.Grayscale(),
