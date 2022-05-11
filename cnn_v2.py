@@ -80,7 +80,6 @@ testloader = torch.utils.data.DataLoader(
     test_dataset, batch_size=batch_size, shuffle=True
 )
 
-
 # construct CNN
 class ConvNet(nn.Module):
     def __init__(self):
@@ -138,6 +137,8 @@ for epoch in track(range(num_epochs)):
             for images, labels in testloader:
                 images = images.to(device)
                 labels = labels.to(device)
+                print(np.shape(images))
+                exit()
                 outputs = model(images)
                 # max returns (value ,index)
                 _, predicted = torch.max(outputs, 1)
